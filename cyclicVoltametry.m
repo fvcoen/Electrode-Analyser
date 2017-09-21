@@ -18,18 +18,19 @@ electrodeIDArray = [];
 voltageArray = [];
 currentArray = [];
 timeArray = [];
-chargeStorageCapacity = 0;
+warning('off','MATLAB:print:FigureTooLargeForPage')
+warning('off','MATLAB:xlswrite:AddSheet')
 
 %% LOOP THROUGH IMPORTED FILES
-for i=1:1:loopSize
+for n=1:1:loopSize
     
     % EXTRACT DATA
     if iscell(importedFiles)
-        fileNameArray = [fileNameArray; strjoin(importedFiles(i))]; %strjoin converts cell type into string
+        fileNameArray = [fileNameArray; strjoin(importedFiles(n))]; %strjoin converts cell type into string
     else
         fileNameArray = [importedFiles]; %getfile has only returned 1 file whose name is already a string
     end
-    fileName = fileNameArray(i,:)
+    fileName = fileNameArray(n,:)
     indexOfImplantID = strfind(fileName,'W');
     implantID = fileName(indexOfImplantID:indexOfImplantID+9);
     implantIDArray = [implantIDArray; implantID];
@@ -41,20 +42,121 @@ for i=1:1:loopSize
     currentArray = currentArray(~isnan(currentArray));
     timeArray = importTime(fileName);
     timeArray = timeArray(~isnan(timeArray));
-%     i = 2;
-%     % first 3 segments of the curve
-%     while voltageArray(i) > 0 || (voltageArray(i+1)-voltageArray(i)) < 0
-%         chargeStorageCapacity = chargeStorageCapacity + (currentArray(i+1)+currentArray(i))/2*(timeArray(i+1)-timeArray(i));
-%         i = i+1;
-%     end
-    minVoltageIndex = find(voltageArray == min(voltageArray));
-    maxVoltageIndex = find(voltageArray == max(voltageArray));
-    i = minVoltageIndex(1);
-    %last segment of the curve
-    while i < minVoltageIndex(2)
-        chargeStorageCapacity = chargeStorageCapacity + (currentArray(i+1)+currentArray(i))/2*(timeArray(i+1)-timeArray(i));
-        i = i+1;
-    end
-    i
     
+    chargeStorageCapacityArray = [];
+    chargeStorageCapacityRow = [];
+    chargeStorageCapacityTemp = 0;
+    chargeStorageCapacity = [];
+    phase1Edges = [];
+    phase2Edges = [];
+    phase3Edges = [];
+    phase4Edges = [];
+    curveNames = [];
+    CVPlotAll = figure;
+    i = 2;
+    
+    % Sort data in 4 phases and compute charge storage capacity
+    while i < size(voltageArray,1)
+        % Phase 1: voltage positive, voltage slope positive
+        start = i;
+        while i < size(voltageArray,1) && voltageArray(i) > 0 && (voltageArray(i) - voltageArray(i-1)) > 0
+            chargeStorageCapacityTemp = chargeStorageCapacityTemp + abs(trapz(timeArray(i-1:i), currentArray(i-1:i))/(voltageArray(i)-voltageArray(i-1)));
+            i = i+1;
+        end
+        phase1Edges = [phase1Edges; start i-1];
+        chargeStorageCapacityRow  = [chargeStorageCapacityRow chargeStorageCapacityTemp];
+        chargeStorageCapacityTemp = 0;
+        % Phase 2: voltage positive, voltage slope negative
+        start = i;
+        while i < size(voltageArray,1) && voltageArray(i) > 0 && (voltageArray(i) - voltageArray(i-1)) < 0
+            chargeStorageCapacityTemp = chargeStorageCapacityTemp + abs(trapz(timeArray(i-1:i), currentArray(i-1:i))/(voltageArray(i)-voltageArray(i-1)));
+            i = i+1;
+        end
+        phase2Edges = [phase2Edges; start i-1];
+        chargeStorageCapacityRow = [chargeStorageCapacityRow chargeStorageCapacityTemp];
+        chargeStorageCapacityTemp = 0;
+        % Phase 3: voltage negative, voltage slope negative
+        start = i;
+        while i < size(voltageArray,1) && voltageArray(i) < 0 && (voltageArray(i) - voltageArray(i-1)) < 0
+            chargeStorageCapacityTemp = chargeStorageCapacityTemp + abs(trapz(timeArray(i-1:i), currentArray(i-1:i))/(voltageArray(i)-voltageArray(i-1)));
+            i = i+1;
+        end
+        phase3Edges = [phase3Edges; start i-1];
+        chargeStorageCapacityRow = [chargeStorageCapacityRow chargeStorageCapacityTemp];
+        chargeStorageCapacityTemp = 0;
+        % Phase 4: voltage negative, voltage slope positive
+        start = i;
+        while i < size(voltageArray,1) && voltageArray(i) < 0 && (voltageArray(i) - voltageArray(i-1)) > 0
+            chargeStorageCapacityTemp = chargeStorageCapacityTemp + abs(trapz(timeArray(i-1:i), currentArray(i-1:i))/(voltageArray(i)-voltageArray(i-1)));
+            i = i+1;
+        end
+        phase4Edges = [phase4Edges; start i-1];
+        chargeStorageCapacityRow = [chargeStorageCapacityRow chargeStorageCapacityTemp];
+        chargeStorageCapacityTemp = 0;
+        
+        chargeStorageCapacityArray = [chargeStorageCapacityArray; chargeStorageCapacityRow];
+        chargeStorageCapacityRow = [];
+    end
+    
+    for j=1:1:size(phase1Edges,1)
+        
+        % Generate and display individual CV plot
+        figure
+        plot(voltageArray(phase1Edges(j,1):phase4Edges(j,2)), 10^6.*currentArray(phase1Edges(j,1):phase4Edges(j,2)),'LineWidth',2.5)
+        grid on
+        curveNames = [curveNames; replace(strcat('Curve_',num2str(j)),'_',' ')];
+        legend(curveNames(j,:))
+        xlabel('Voltage [V]')
+        ylabel('Current [\muA]')
+        title(replace(strcat('Cyclic Voltametry_',implantIDArray(n,:),'_',electrodeIDArray(n,:)),'_',' '))
+        CVPlot = gcf;
+        CVPlot.PaperPositionMode = 'auto';
+        CVPlot_pos = CVPlot.PaperPosition;
+        CVPlot.PaperSize = [CVPlot_pos(3) CVPlot_pos(4)];
+        titleCVPlotFile = strcat(implantIDArray(n,:),'_',electrodeIDArray(n,:),'_Curve_',num2str(j),'_CV_plot','.pdf');
+        saveas(gcf,titleCVPlotFile)
+        
+        %Populate global CV plot
+        figure(CVPlotAll)
+        plot(voltageArray(phase1Edges(j,1):phase4Edges(j,2)), 10^6.*currentArray(phase1Edges(j,1):phase4Edges(j,2)),'LineWidth',2.5)
+        hold on
+        
+        % Compute and save Charge Storage Capacity in .txt file
+        chargeStorageCapacity = [chargeStorageCapacity; sum(chargeStorageCapacityArray(j,:),2)];
+        if n == 1 && j == 1 % First curve of the first electrode is responsible for creating the file
+            fid = fopen(strcat(implantIDArray(1,:),'_CSC','.txt'),'wt+');
+            fprintf(fid,'\t \t \t \t \t \t Charge Storage Capacity [mF]\n');
+            fprintf(fid, '%s_%s %s\t %f\t \n',implantID,electrodeID,curveNames(j,:),10^3.*chargeStorageCapacity(j));
+        else
+            fid = fopen(strcat(implantIDArray(1,:),'_CSC','.txt'),'at+');
+            fprintf(fid, '%s_%s %s\t %f\t \n',implantID,electrodeID,curveNames(j,:),10^3.*chargeStorageCapacity(j));
+        end
+        if j == size(phase1Edges,1) % Last curve of each electrode is responsible for creating the avg and var
+            fid = fopen(strcat(implantIDArray(1,:),'_CSC','.txt'),'at+');
+            fprintf(fid, '______________________________________________________________\n');
+            fprintf(fid, '%s_%s Average\t %f\t Variance\t %e\n',implantID,electrodeID,10^3*mean(sum(chargeStorageCapacityArray,2)),var(sum(chargeStorageCapacityArray,2)));
+            fprintf(fid, '______________________________________________________________\n');
+        end
+    end
+    
+    % Display global CV plot
+    figure(CVPlotAll)
+    grid on
+    legend(curveNames)
+    xlabel('Voltage [V]')
+    ylabel('Current [\muA]')
+    title(replace(strcat('Cyclic Voltametry_',implantIDArray(n,:),'_',electrodeIDArray(n,:)),'_',' '))
+    CVPlot = gcf;
+    CVPlot.PaperPositionMode = 'auto';
+    CVPlot_pos = CVPlot.PaperPosition;
+    CVPlot.PaperSize = [CVPlot_pos(3) CVPlot_pos(4)];
+    titleCVPlotFile = strcat(implantIDArray(n,:),'_',electrodeIDArray(n,:),'_CV_plot','.pdf');
+    saveas(gcf,titleCVPlotFile)
+    
+    %% GENERATE .xlsx FILE
+    xlsxFile = strcat(implantIDArray(1,:),'.xlsx');
+    dataTable = table(timeArray, voltageArray, currentArray,'VariableNames',{'Time' 'Voltage' 'Current'});
+    writetable(dataTable, xlsxFile, 'Sheet',electrodeIDArray(n,:))
+
+
 end
