@@ -109,10 +109,10 @@ for n=1:1:loopSize
         xlabel('Voltage [V]')
         ylabel('Current [\muA]')
         title(replace(strcat('Cyclic Voltametry_',implantIDArray(n,:),'_',electrodeIDArray(n,:)),'_',' '))
-        CVPlot = gcf;
-        CVPlot.PaperPositionMode = 'auto';
-        CVPlot_pos = CVPlot.PaperPosition;
-        CVPlot.PaperSize = [CVPlot_pos(3) CVPlot_pos(4)];
+        CVPlot2 = gcf;
+        CVPlot2.PaperPositionMode = 'auto';
+        CVPlot2_pos = CVPlot2.PaperPosition;
+        CVPlot2.PaperSize = [CVPlot2_pos(3) CVPlot2_pos(4)];
         titleCVPlotFile = strcat(implantIDArray(n,:),'_',electrodeIDArray(n,:),'_Curve_',num2str(j),'_CV_plot','.pdf');
         saveas(gcf,titleCVPlotFile)
         
@@ -152,6 +152,26 @@ for n=1:1:loopSize
     CVPlot.PaperSize = [CVPlot_pos(3) CVPlot_pos(4)];
     titleCVPlotFile = strcat(implantIDArray(n,:),'_',electrodeIDArray(n,:),'_CV_plot','.pdf');
     saveas(gcf,titleCVPlotFile)
+    
+    % Display global CV plot 2
+    figure
+    grid on
+    title(replace(strcat('Cyclic Voltametry_',implantIDArray(n,:),'_',electrodeIDArray(n,:)),'_',' '))
+    yyaxis left
+    plot(timeArray,voltageArray,'LineWidth',2.5)
+    xlabel('Time [s]')
+    ylabel('Voltage [V]')
+    
+    yyaxis right
+    plot(timeArray,currentArray.*10^6,'LineWidth',2.5)
+    ylabel('Current [\muA]')
+    CVPlot2 = gcf;
+    CVPlot2.PaperPositionMode = 'auto';
+    CVPlot2_pos = CVPlot2.PaperPosition;
+    CVPlot2.PaperSize = [CVPlot2_pos(3) CVPlot2_pos(4)];
+    titleCVPlot2File = strcat(implantIDArray(n,:),'_',electrodeIDArray(n,:),'_CV_plot2','.pdf');
+    saveas(gcf,titleCVPlot2File)
+    
     
     %% GENERATE .xlsx FILE
     xlsxFile = strcat(implantIDArray(1,:),'.xlsx');
