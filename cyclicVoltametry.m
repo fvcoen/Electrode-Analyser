@@ -122,7 +122,7 @@ for n=1:1:loopSize
         hold on
         
         % Compute and save Charge Storage Capacity in .txt file
-        chargeStorageCapacity = [chargeStorageCapacity; sum(chargeStorageCapacityArray(j,:),2)];
+        chargeStorageCapacity = [chargeStorageCapacity; sum(chargeStorageCapacityArray(j,:),2)./2./(pi*0.015.^2)];
         if n == 1 && j == 1 % First curve of the first electrode is responsible for creating the file
             fid = fopen(strcat(implantIDArray(1,:),'_CSC','.txt'),'wt+');
             fprintf(fid,'\t \t \t \t \t \t Charge Storage Capacity [mF]\n');
